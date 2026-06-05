@@ -1,0 +1,23 @@
+{
+  "name": "monitoring-agent-sdk",
+  "version": "1.0.0",
+  "description": "Client SDK for the Centralized Monitoring Platform — push heartbeats, metrics, and events from your app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node --test 'dist/__tests__/*.test.js'",
+    "lint": "eslint src/"
+  },
+  "keywords": ["monitoring", "observability", "healthcheck", "metrics"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.11.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

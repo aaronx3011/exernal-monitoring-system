@@ -1,0 +1,160 @@
+services:
+  api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    expose:
+      - "3000"
+    env_file:
+      - ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+        VITE_GRAFANA_URL: https://grafana.example.com
+    expose:
+      - "80"
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    expose:
+      - "5432"
+    env_file:
+      - ../.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor -d monitoring"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    expose:
+      - "5432"
+    env_file:
+      - ../.env
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.0
+    expose:
+      - "3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    expose:
+      - "3000"
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  wireguard:
+    image: linuxserver/wireguard:latest
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    ports:
+      - "51820:51820/udp"
+    volumes:
+      - ./wireguard:/config
+      - /lib/modules:/lib/modules:ro
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    networks:
+      - monitoring-net
+    restart: unless-stopped
+
+  k6-runner:
+    build:
+      context: ./k6-runner
+      dockerfile: Dockerfile
+    restart: no
+    profiles:
+      - donotstart
+    networks:
+      - monitoring-net
+
+networks:
+  monitoring-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  timescaledb_data:
+  redis_data:
+  loki_data:
+  prometheus_data:
+  grafana_data:
+  npm_data:
+  npm_letsencrypt:

@@ -1,0 +1,114 @@
+{
+  "title": "Fleet Overview",
+  "uid": "fleet-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Fleet-Wide Uptime",
+      "type": "stat",
+      "id": 1,
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "avg(up{job=~\"app_targets|node_exporters\"}) * 100",
+          "legendFormat": "Uptime %"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "title": "Per-App Latency (p95)",
+      "type": "bargauge",
+      "id": 2,
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, app))",
+          "legendFormat": "{{app}}"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "title": "Top Errors",
+      "type": "table",
+      "id": 3,
+      "gridPos": { "h": 8, "w": 6, "x": 15, "y": 0 },
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "rate({app=~\".+\"} |~ \"error|ERROR|exception|Exception\" [5m])",
+          "legendFormat": "{{app}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      }
+    },
+    {
+      "title": "Application Health Grid",
+      "type": "table",
+      "id": 4,
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "up{job=~\"app_targets|node_exporters\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Value", "desc": true }]
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": 1 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

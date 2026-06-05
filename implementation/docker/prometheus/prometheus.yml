@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+
+  - job_name: 'node_exporters'
+    scrape_interval: 30s
+    static_configs:
+      - targets: []
+    # Targets will be populated dynamically from app registry
+
+  - job_name: 'app_targets'
+    scrape_interval: 30s
+    static_configs:
+      - targets: []
+    # Application-specific scrape targets populated via service discovery
+
+remote_write:
+  - url: http://timescaledb:5433/prometheus
+    # Placeholder for TimescaleDB Prometheus connector

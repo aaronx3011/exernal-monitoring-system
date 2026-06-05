@@ -1,0 +1,45 @@
+node_modules/
+dist/
+build/
+.next/
+
+# Environment files
+.env
+.env.local
+.env.production
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Coverage
+coverage/
+
+# Docker
+docker/grafana/dashboards/*.json
+!docker/grafana/dashboards/*.yml
+!docker/grafana/dashboards/*.yaml
+
+# Certificates
+docker/nginx/ssl/
+*.pem
+*.key
+
+# WireGuard
+docker/wireguard/*.conf
+!docker/wireguard/*.example
+
+# Uploads
+uploads/

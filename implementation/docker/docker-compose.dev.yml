@@ -1,0 +1,46 @@
+services:
+  nginx-proxy-manager:
+    profiles:
+      - donotstart
+
+  wireguard:
+    profiles:
+      - donotstart
+
+  k6-runner:
+    profiles:
+      - donotstart
+
+  dashboard:
+    profiles:
+      - donotstart
+
+  api:
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  timescaledb:
+    ports:
+      - "5433:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  loki:
+    ports:
+      - "3100:3100"
+
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  grafana:
+    ports:
+      - "3001:3000"
