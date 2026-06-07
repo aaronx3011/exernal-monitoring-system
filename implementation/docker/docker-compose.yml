@@ -139,7 +139,7 @@ services:
     build:
       context: ./k6-runner
       dockerfile: Dockerfile
-    restart: no
+    restart: "no"
     profiles:
       - donotstart
     networks:
