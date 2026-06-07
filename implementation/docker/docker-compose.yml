@@ -148,6 +148,9 @@ services:
 networks:
   monitoring-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
 
 volumes:
   postgres_data:
