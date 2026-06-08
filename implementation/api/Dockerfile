@@ -13,7 +13,7 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini docker-cli
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
