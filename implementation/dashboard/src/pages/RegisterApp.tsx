@@ -33,6 +33,7 @@ export default function RegisterApp() {
     owner: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [createdAppId, setCreatedAppId] = useState<string | null>(null)
 
   const validateUrl = (url: string) => {
     try {
@@ -61,6 +62,7 @@ export default function RegisterApp() {
         tags: tagsList,
       })
       setApiKey(res.data.data.apiKey.plaintextKey)
+      setCreatedAppId(res.data.data.application.id)
       setStep('reveal')
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Failed to register app'
@@ -79,7 +81,7 @@ export default function RegisterApp() {
 
   const handleDismiss = () => {
     setStep('form')
-    navigate(`/apps/new-${Date.now()}`)
+    navigate(createdAppId ? `/apps/${createdAppId}` : '/')
   }
 
   const tagsList = form.tags
