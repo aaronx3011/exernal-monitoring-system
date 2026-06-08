@@ -23,6 +23,6 @@ scrape_configs:
       - targets: []
     # Application-specific scrape targets populated via service discovery
 
-remote_write:
-  - url: http://timescaledb:5433/prometheus
-    # Placeholder for TimescaleDB Prometheus connector
+# remote_write:
+#   Prometheus remote-write to TimescaleDB requires the Promscale connector.
+#   Metrics are stored via the platform's own ingestion API instead.
