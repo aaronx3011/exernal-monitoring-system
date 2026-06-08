@@ -121,7 +121,7 @@ ${headersStr}
     },
   };
 
-  const res = http.${method.toLowerCase()}(${method === 'GET' ? 'url' : 'url, ' + bodyBlock}params);
+  const res = http.${method.toLowerCase()}(${method === 'GET' ? 'url, ' : 'url, ' + bodyBlock}params);
 
   check(res, {
     'status is 200': (r) => r.status === 200,
