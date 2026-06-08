@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from '../storage/entities/user.entity';
+import { Organization } from '../storage/entities/organization.entity';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -16,6 +17,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Organization)
+    private readonly organizationRepository: Repository<Organization>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -76,6 +79,11 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
+    const org = this.organizationRepository.create({
+      name: `${dto.name}'s Organization`,
+    });
+    const savedOrg = await this.organizationRepository.save(org);
+
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(dto.password, salt);
 
@@ -84,6 +92,7 @@ export class AuthService {
       passwordHash,
       name: dto.name,
       role: dto.role || 'viewer',
+      orgId: savedOrg.id,
     });
 
     const saved = await this.userRepository.save(user);
