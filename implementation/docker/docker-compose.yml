@@ -16,6 +16,7 @@ services:
         condition: service_started
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/k6-scripts:/tmp/k6-scripts
     networks:
       - monitoring-net
     restart: unless-stopped

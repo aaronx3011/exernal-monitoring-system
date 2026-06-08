@@ -38,11 +38,15 @@ export class K6RunnerProcessor extends WorkerHost {
 
     try {
       const script = this.generateScript(testDef);
-      const tmpFile = path.join(os.tmpdir(), `k6-script-${testRunId}.js`);
+      const scriptsDir = process.env.K6_SCRIPTS_DIR || '/tmp/k6-scripts';
+      if (!fs.existsSync(scriptsDir)) {
+        fs.mkdirSync(scriptsDir, { recursive: true });
+      }
+      const tmpFile = path.join(scriptsDir, `k6-script-${testRunId}.js`);
       fs.writeFileSync(tmpFile, script);
 
       const output = execSync(
-        `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout 2>/dev/null`,
+        `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout`,
         { timeout: (testDef.durationS + 60) * 1000, encoding: 'utf-8' },
       );
 
