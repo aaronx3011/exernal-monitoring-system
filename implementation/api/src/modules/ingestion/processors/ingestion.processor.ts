@@ -10,7 +10,9 @@ export class IngestionProcessor extends WorkerHost {
 
   constructor(
     @InjectDataSource()
-    private readonly dataSource: DataSource,
+    private readonly defaultDataSource: DataSource,
+    @InjectDataSource('timescale')
+    private readonly timescaleDataSource: DataSource,
   ) {
     super();
   }
@@ -33,13 +35,13 @@ export class IngestionProcessor extends WorkerHost {
   private async processHeartbeatBatch(applicationId: string, data: any) {
     const { status, version, uptime_s, custom } = data;
 
-    await this.dataSource.query(
+    await this.timescaleDataSource.query(
       `INSERT INTO metrics (time, application_id, metric_name, value, labels)
        VALUES (NOW(), $1, 'heartbeat_status', 1, $2::jsonb)`,
       [applicationId, JSON.stringify({ status, version, uptime_s, custom: custom || {} })],
     );
 
-    await this.dataSource.query(
+    await this.defaultDataSource.query(
       `UPDATE applications SET status = $1 WHERE id = $2`,
       [status === 'up' ? 'active' : status, applicationId],
     );
@@ -50,7 +52,7 @@ export class IngestionProcessor extends WorkerHost {
       const ts = sample.ts ? new Date(sample.ts) : new Date();
       const labels = sample.labels ? JSON.stringify(sample.labels) : '{}';
 
-      await this.dataSource.query(
+      await this.timescaleDataSource.query(
         `INSERT INTO metrics (time, application_id, metric_name, value, labels)
          VALUES ($1, $2, $3, $4, $5::jsonb)`,
         [ts, applicationId, sample.name, sample.value, labels],
@@ -63,7 +65,7 @@ export class IngestionProcessor extends WorkerHost {
       const ts = event.ts ? new Date(event.ts) : new Date();
       const attributes = event.attributes ? JSON.stringify(event.attributes) : '{}';
 
-      await this.dataSource.query(
+      await this.timescaleDataSource.query(
         `INSERT INTO metrics (time, application_id, metric_name, value, labels)
          VALUES ($1, $2, $3, $4, $5::jsonb)`,
         [ts, applicationId, `event.${event.level}`, 1, JSON.stringify({ message: event.message, attributes })],

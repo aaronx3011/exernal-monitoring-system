@@ -32,7 +32,9 @@ export class ProbingService implements OnModuleInit {
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
     @InjectDataSource()
-    private readonly dataSource: DataSource,
+    private readonly defaultDataSource: DataSource,
+    @InjectDataSource('timescale')
+    private readonly timescaleDataSource: DataSource,
     @Inject(REDIS_PROVIDER)
     private readonly redis: Redis,
     private readonly gateway: ProbingGateway,
@@ -160,13 +162,13 @@ export class ProbingService implements OnModuleInit {
     const now = new Date();
     const labels = JSON.stringify({ statusCode: result.statusCode, error: result.error });
 
-    await this.dataSource.query(
+    await this.timescaleDataSource.query(
       `INSERT INTO metrics (time, application_id, metric_name, value, labels)
        VALUES ($1, $2, 'probe_latency_ms', $3, $4::jsonb)`,
       [now, applicationId, result.latencyMs, labels],
     );
 
-    await this.dataSource.query(
+    await this.timescaleDataSource.query(
       `INSERT INTO metrics (time, application_id, metric_name, value, labels)
        VALUES ($1, $2, 'probe_up', $3, $4::jsonb)`,
       [now, applicationId, result.reachable ? 1 : 0, labels],
@@ -244,7 +246,7 @@ export class ProbingService implements OnModuleInit {
       ),
     );
 
-    const results = await this.dataSource.query(
+    const results = await this.timescaleDataSource.query(
       `SELECT value FROM metrics
        WHERE application_id = $1 AND metric_name = 'probe_up' AND time >= $2
        ORDER BY time DESC`,

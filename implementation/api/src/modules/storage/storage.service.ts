@@ -1,15 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 @Injectable()
-export class StorageService {
+export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
 
   constructor(
-    @InjectDataSource()
+    @InjectDataSource('timescale')
     private readonly dataSource: DataSource,
   ) {}
+
+  async onModuleInit() {
+    await this.createMetricsTable('metrics');
+  }
 
   async ensureHypertable(
     tableName: string,

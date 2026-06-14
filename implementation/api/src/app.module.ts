@@ -33,6 +33,22 @@ import { HealthController } from './health.controller';
       }),
     }),
 
+    TypeOrmModule.forRootAsync({
+      name: 'timescale',
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get<string>('TIMESCALE_HOST', 'timescaledb'),
+        port: config.get<number>('TIMESCALE_PORT', 5432),
+        username: config.get<string>('DB_USERNAME', 'monitor'),
+        password: config.get<string>('DB_PASSWORD', 'change_me'),
+        database: config.get<string>('DB_DATABASE', 'monitoring'),
+        synchronize: false,
+        logging: config.get<string>('NODE_ENV') === 'development',
+      }),
+    }),
+
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
