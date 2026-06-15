@@ -13,7 +13,7 @@ datasources:
     database: monitoring
     user: monitor
     secureJsonData:
-      password: ${POSTGRES_PASSWORD}
+      password: change_me
     jsonData:
       sslmode: disable
 
