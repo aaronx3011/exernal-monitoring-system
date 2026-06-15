@@ -23,6 +23,7 @@ interface RunEntry {
   p99: number
   errorRate: number
   rps: number
+  startedAt?: string
 }
 
 export default function TestDetail() {
@@ -57,6 +58,7 @@ export default function TestDetail() {
         p99: r.p99 || 0,
         errorRate: r.errorRate ?? (r.passed ? 0 : 100),
         rps: r.rps || 0,
+        startedAt: r.startedAt,
       })))
     } catch {
       console.error('Failed to fetch test detail')
@@ -70,7 +72,10 @@ export default function TestDetail() {
   }, [id])
 
   const latestRun = runs[0]
-  const isRunning = latestRun && (latestRun.status === 'running' || latestRun.status === 'pending')
+  const isStale = latestRun && latestRun.startedAt && test
+    ? (Date.now() - new Date(latestRun.startedAt).getTime()) > (test.durationS + 120) * 1000
+    : false
+  const isRunning = latestRun && !isStale && (latestRun.status === 'running' || latestRun.status === 'pending')
 
   useEffect(() => {
     if (!isRunning || !test) {
