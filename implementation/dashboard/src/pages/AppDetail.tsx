@@ -173,8 +173,19 @@ export default function AppDetail() {
       await api.delete(`/keys/${keyId}`)
       Toast({ title: 'Key revoked', variant: 'destructive' })
       setApp((prev) => prev ? { ...prev, apiKeys: prev.apiKeys.filter((k) => k.id !== keyId) } : null)
-    } catch {
-      Toast({ title: 'Failed to revoke key', variant: 'destructive' })
+    } catch (err: any) {
+      Toast({ title: 'Failed to revoke key', description: err?.response?.data?.message || err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteApp = async () => {
+    if (!id || !window.confirm('Are you sure you want to delete this application? This will also revoke all API keys.')) return
+    try {
+      await api.delete(`/applications/${id}`)
+      Toast({ title: 'Application deleted' })
+      navigate('/')
+    } catch (err: any) {
+      Toast({ title: 'Failed to delete application', description: err?.response?.data?.message || err.message, variant: 'destructive' })
     }
   }
 
@@ -529,12 +540,7 @@ export default function AppDetail() {
               <CardTitle className="text-destructive">Danger Zone</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button variant="destructive" onClick={() => {
-                if (window.confirm('Are you sure you want to delete this application?')) {
-                  Toast({ title: 'Application deleted', variant: 'destructive' })
-                  navigate('/')
-                }
-              }}>
+              <Button variant="destructive" onClick={handleDeleteApp}>
                 Delete Application
               </Button>
             </CardContent>

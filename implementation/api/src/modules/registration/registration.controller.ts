@@ -82,6 +82,17 @@ export class RegistrationController {
     return this.registrationService.revokeKey(id, user.id);
   }
 
+  @Delete('applications/:id')
+  @Roles('admin', 'operator')
+  @ApiOperation({ summary: 'Delete an application and its keys' })
+  async deleteApplication(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.registrationService.deleteApplication(id, user.orgId, user.id);
+    return { deleted: true };
+  }
+
   @Post('applications/:id/check-connectivity')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Check connectivity to the application health endpoint' })

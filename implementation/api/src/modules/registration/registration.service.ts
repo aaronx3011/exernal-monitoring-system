@@ -173,6 +173,25 @@ export class RegistrationService {
     return { revoked: true };
   }
 
+  async deleteApplication(appId: string, orgId: string, actorId: string) {
+    const app = await this.appRepository.findOne({
+      where: { id: appId, orgId },
+      relations: ['apiKeys'],
+    });
+    if (!app) throw new NotFoundException('Application not found');
+
+    await this.keyRepository.delete({ applicationId: appId });
+    await this.appRepository.remove(app);
+
+    await this.auditLogRepository.save({
+      actor: actorId,
+      action: 'application.deleted',
+      targetType: 'application',
+      targetId: appId,
+      metadata: { name: app.name },
+    });
+  }
+
   async checkConnectivity(appId: string, orgId: string) {
     const app = await this.appRepository.findOne({ where: { id: appId, orgId } });
     if (!app) {
