@@ -60,8 +60,19 @@ services:
       - ../.env
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
-      - ./timescaledb/start.sh:/start.sh
-    command: /bin/sh /start.sh
+    command:
+      - sh
+      - -c
+      - |
+        /usr/local/bin/docker-entrypoint.sh postgres &
+        until pg_isready -U monitor -d postgres 2>/dev/null; do sleep 1; done
+        if createdb -U monitor monitoring 2>/dev/null; then
+          echo '[timescaledb] Created database: monitoring'
+        else
+          echo '[timescaledb] Database already exists: monitoring'
+        fi
+        psql -U monitor -d monitoring -c 'CREATE EXTENSION IF NOT EXISTS timescaledb' 2>/dev/null || true
+        wait
     networks:
       - monitoring-net
     restart: unless-stopped
