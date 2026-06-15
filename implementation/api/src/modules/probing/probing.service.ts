@@ -229,6 +229,53 @@ export class ProbingService implements OnModuleInit {
     return result;
   }
 
+  async queryAppMetrics(appId: string, orgId: string, options: {
+    metricNames?: string[];
+    from?: Date;
+    to?: Date;
+    limit?: number;
+  }) {
+    const app = await this.appRepository.findOne({ where: { id: appId, orgId } });
+    if (!app) throw new NotFoundException('Application not found');
+
+    const conditions: string[] = ['application_id = $1'];
+    const params: any[] = [appId];
+    let paramIndex = 2;
+
+    if (options.metricNames && options.metricNames.length > 0) {
+      conditions.push(`metric_name = ANY($${paramIndex++})`);
+      params.push(options.metricNames);
+    }
+    if (options.from) {
+      conditions.push(`time >= $${paramIndex++}`);
+      params.push(options.from);
+    }
+    if (options.to) {
+      conditions.push(`time <= $${paramIndex++}`);
+      params.push(options.to);
+    }
+
+    const limit = options.limit || 500;
+
+    const rows = await this.timescaleDataSource.query(
+      `SELECT time, metric_name, value, labels
+       FROM metrics
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY time DESC
+       LIMIT ${limit}`,
+      params,
+    );
+
+    return {
+      metrics: rows.map((r: any) => ({
+        time: r.time,
+        metricName: r.metric_name,
+        value: r.value,
+        labels: r.labels,
+      })),
+    };
+  }
+
   async calculateUptime(appId: string, orgId: string, period: string = '24h') {
     const app = await this.appRepository.findOne({ where: { id: appId, orgId } });
     if (!app) throw new NotFoundException('Application not found');

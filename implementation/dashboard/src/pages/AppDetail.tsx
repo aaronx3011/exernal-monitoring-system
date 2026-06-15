@@ -10,6 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toast } from '@/components/ui/toast'
+import {
+  LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
+} from 'recharts'
 import api from '@/lib/api'
 
 interface AppData {
@@ -42,6 +45,9 @@ export default function AppDetail() {
   const [app, setApp] = useState<AppData | null>(null)
   const [loading, setLoading] = useState(true)
   const [probeRunning, setProbeRunning] = useState(false)
+  const [metrics, setMetrics] = useState<any[]>([])
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsError, setMetricsError] = useState<string | null>(null)
 
   const fetchApp = async () => {
     if (!id) return
@@ -83,6 +89,21 @@ export default function AppDetail() {
       console.error('Failed to fetch app', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchMetrics = async () => {
+    if (!id) return
+    setMetricsLoading(true)
+    setMetricsError(null)
+    try {
+      const from = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const res = await api.get(`/probing/${id}/metrics?from=${from}&limit=1000`)
+      setMetrics(res.data.data.metrics || [])
+    } catch (err: any) {
+      setMetricsError(err?.response?.data?.message || 'Failed to load metrics')
+    } finally {
+      setMetricsLoading(false)
     }
   }
 
@@ -277,15 +298,80 @@ export default function AppDetail() {
 
         <TabsContent value="metrics" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Metrics</CardTitle>
-              <CardDescription>Metrics are collected via the ingestion API and stored in TimescaleDB</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Metrics</CardTitle>
+                <CardDescription>Collected from agents and probes, stored in TimescaleDB</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchMetrics} disabled={metricsLoading}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${metricsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Detailed metrics charts coming soon.</p>
-                <p className="text-sm mt-1">Push metrics via POST /api/v1/ingest/metrics with your API key.</p>
-              </div>
+              {metricsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-48" />
+                  ))}
+                </div>
+              ) : metricsError ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-destructive">{metricsError}</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={fetchMetrics}>
+                    Retry
+                  </Button>
+                </div>
+              ) : metrics.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-3" />
+                  <p>No metrics received in the last 30 minutes.</p>
+                  <p className="text-sm mt-1">Push metrics via POST /api/v1/ingest/metrics with your API key.</p>
+                </div>
+              ) : (
+                (() => {
+                  const grouped: Record<string, any[]> = {}
+                  for (const m of metrics) {
+                    if (!grouped[m.metricName]) grouped[m.metricName] = []
+                    grouped[m.metricName].push({ time: m.time, value: m.value })
+                  }
+                  const sorted = [...Object.entries(grouped)].sort((a, b) => a[0].localeCompare(b[0]))
+                  return sorted.map(([name, points]) => {
+                    const chartData = points.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                    const unit = name === 'cpu_usage_percent' || name === 'memory_usage_percent' ? '%' : name === 'probe_latency_ms' ? 'ms' : ''
+                    return (
+                      <div key={name} className="mb-6">
+                        <h4 className="text-sm font-medium mb-2 capitalize">{name.replace(/_/g, ' ')}{unit && <span className="text-muted-foreground"> ({unit})</span>}</h4>
+                        <div style={{ height: 200 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                              <XAxis
+                                dataKey="time"
+                                tick={{ fontSize: 11 }}
+                                tickFormatter={(v: string) => new Date(v).toLocaleTimeString()}
+                                className="text-muted-foreground"
+                              />
+                              <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                              <Tooltip
+                                labelFormatter={(v: string) => new Date(v).toLocaleString()}
+                                formatter={(val: number) => [unit ? `${val}${unit}` : val, name.replace(/_/g, ' ')]}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="value"
+                                stroke="hsl(var(--primary))"
+                                strokeWidth={1.5}
+                                dot={false}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )
+                  })
+                })()
+              )}
             </CardContent>
           </Card>
         </TabsContent>

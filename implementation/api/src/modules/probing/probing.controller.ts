@@ -55,4 +55,23 @@ export class ProbingController {
   ) {
     return this.probingService.calculateUptime(appId, user.orgId, period);
   }
+
+  @Get(':appId/metrics')
+  @Roles('admin', 'operator', 'viewer')
+  @ApiOperation({ summary: 'Query raw metrics from TimescaleDB for an application' })
+  async getMetrics(
+    @Param('appId') appId: string,
+    @Query('metricNames') metricNames: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('limit') limit: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.probingService.queryAppMetrics(appId, user.orgId, {
+      metricNames: metricNames ? metricNames.split(',').map(s => s.trim()) : undefined,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
 }
