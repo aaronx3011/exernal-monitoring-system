@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestRun } from '../../storage/entities/test-run.entity';
 import { TestDefinition } from '../../storage/entities/test-definition.entity';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -45,10 +45,16 @@ export class K6RunnerProcessor extends WorkerHost {
       const tmpFile = path.join(scriptsDir, `k6-script-${testRunId}.js`);
       fs.writeFileSync(tmpFile, script);
 
-      const output = execSync(
-        `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout`,
-        { timeout: (testDef.durationS + 60) * 1000, encoding: 'utf-8' },
-      );
+      const output = await new Promise<string>((resolve, reject) => {
+        exec(
+          `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout`,
+          { timeout: (testDef.durationS + 60) * 1000, encoding: 'utf-8' },
+          (err, stdout) => {
+            if (err) reject(err);
+            else resolve(stdout);
+          },
+        );
+      });
 
       fs.unlinkSync(tmpFile);
 
