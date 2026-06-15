@@ -5,10 +5,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestRun } from '../../storage/entities/test-run.entity';
 import { TestDefinition } from '../../storage/entities/test-definition.entity';
-import { exec } from 'child_process';
+import { execSync, exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+
+const K6_IMAGE = 'grafana/k6:latest';
 
 @Processor('testing')
 export class K6RunnerProcessor extends WorkerHost {
@@ -21,10 +23,22 @@ export class K6RunnerProcessor extends WorkerHost {
     private readonly testDefRepository: Repository<TestDefinition>,
   ) {
     super();
+    this.pullImage();
+  }
+
+  private pullImage() {
+    try {
+      this.logger.log(`Pre-pulling ${K6_IMAGE}...`);
+      execSync(`docker pull ${K6_IMAGE}`, { timeout: 120_000, stdio: 'pipe' });
+      this.logger.log(`Image ${K6_IMAGE} ready`);
+    } catch {
+      this.logger.warn(`Could not pre-pull ${K6_IMAGE}, will pull on first run`);
+    }
   }
 
   async process(job: Job<any>): Promise<any> {
     const { testRunId, testDefinitionId } = job.data;
+    this.logger.log(`Processing test run ${testRunId} (test: ${testDefinitionId})`);
 
     const testRun = await this.testRunRepository.findOne({ where: { id: testRunId } });
     if (!testRun) throw new Error(`TestRun ${testRunId} not found`);
@@ -36,12 +50,12 @@ export class K6RunnerProcessor extends WorkerHost {
       const elapsed = Date.now() - testRun.startedAt.getTime();
       const maxRun = (testDef.durationS + 120) * 1000;
       if (elapsed > maxRun) {
+        this.logger.warn(`Stale run ${testRunId} (${Math.round(elapsed / 1000)}s) — marking failed`);
         testRun.status = 'failed';
         testRun.finishedAt = new Date();
-        testRun.summary = { error: 'Stale run detected — exceeded max duration' };
+        testRun.summary = { error: 'Stale run exceeded max duration' };
         testRun.passed = false;
         await this.testRunRepository.save(testRun);
-        this.logger.warn(`Stale test run ${testRunId} marked as failed (${Math.round(elapsed / 1000)}s elapsed)`);
         return { testRunId, passed: false, stale: true };
       }
     }
@@ -49,6 +63,7 @@ export class K6RunnerProcessor extends WorkerHost {
     testRun.status = 'running';
     testRun.startedAt = new Date();
     await this.testRunRepository.save(testRun);
+    this.logger.log(`Test run ${testRunId} set to running`);
 
     try {
       const script = this.generateScript(testDef);
@@ -59,22 +74,27 @@ export class K6RunnerProcessor extends WorkerHost {
       const tmpFile = path.join(scriptsDir, `k6-script-${testRunId}.js`);
       fs.writeFileSync(tmpFile, script);
 
+      this.logger.log(`Starting k6 container for run ${testRunId} (duration: ${testDef.durationS}s)`);
       const output = await new Promise<string>((resolve, reject) => {
         exec(
-          `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout`,
+          `docker run --rm --network=host -v ${tmpFile}:/script.js ${K6_IMAGE} run /script.js --summary-export=/dev/stdout`,
           {
-            timeout: (testDef.durationS + 60) * 1000,
+            timeout: (testDef.durationS + 120) * 1000,
             maxBuffer: 10 * 1024 * 1024,
             encoding: 'utf-8',
           },
           (err, stdout) => {
-            if (err && !stdout) reject(err);
-            else resolve(stdout || '');
+            if (err && (!stdout || !this.isJson(stdout.trim()))) {
+              reject(new Error(stdout ? stdout.trim() : err.message));
+            } else {
+              resolve(stdout || '');
+            }
           },
         );
       });
 
       fs.unlinkSync(tmpFile);
+      this.logger.log(`k6 container finished for run ${testRunId}`);
 
       let summary: any;
       try {
@@ -85,6 +105,7 @@ export class K6RunnerProcessor extends WorkerHost {
 
       const thresholds = testDef.thresholds || {};
       const passed = this.evaluateThresholds(summary, thresholds);
+      this.logger.log(`Run ${testRunId} thresholds evaluated: passed=${passed}`);
 
       testRun.status = 'completed';
       testRun.finishedAt = new Date();
@@ -94,6 +115,7 @@ export class K6RunnerProcessor extends WorkerHost {
 
       return { testRunId, passed, summary };
     } catch (err: any) {
+      this.logger.error(`Run ${testRunId} failed: ${err.message}`);
       testRun.status = 'failed';
       testRun.finishedAt = new Date();
       testRun.summary = { error: err.message };
@@ -102,6 +124,10 @@ export class K6RunnerProcessor extends WorkerHost {
 
       throw err;
     }
+  }
+
+  private isJson(s: string): boolean {
+    try { JSON.parse(s); return true; } catch { return false; }
   }
 
   private generateScript(testDef: TestDefinition): string {
