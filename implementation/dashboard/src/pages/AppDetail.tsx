@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toast } from '@/components/ui/toast'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -49,6 +50,7 @@ export default function AppDetail() {
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricsError, setMetricsError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
+  const [showNewKey, setShowNewKey] = useState<string | null>(null)
   const metricsIntervalRef = useRef<ReturnType<typeof setInterval>>()
 
   const fetchApp = async () => {
@@ -143,10 +145,23 @@ export default function AppDetail() {
     }
   }
 
+  const handleGenerateKey = async () => {
+    if (!id) return
+    try {
+      const res = await api.post(`/applications/${id}/keys`, { label: 'default' })
+      const key = res.data.data
+      setShowNewKey(key.plaintextKey || key.plaintext)
+      fetchApp()
+    } catch {
+      Toast({ title: 'Failed to generate key', variant: 'destructive' })
+    }
+  }
+
   const handleRotateKey = async (keyId: string) => {
     try {
       const res = await api.post(`/keys/${keyId}/rotate`)
-      Toast({ title: 'Key rotated', description: `New key: ${res.data.data.plaintext}` })
+      const key = res.data.data
+      setShowNewKey(key.plaintext)
       fetchApp()
     } catch {
       Toast({ title: 'Failed to rotate key', variant: 'destructive' })
@@ -429,6 +444,9 @@ export default function AppDetail() {
                 <CardTitle>API Keys</CardTitle>
                 <CardDescription>Manage keys for programmatic access</CardDescription>
               </div>
+              <Button size="sm" onClick={handleGenerateKey}>
+                <Key className="h-3.5 w-3.5 mr-1.5" /> Generate Key
+              </Button>
             </CardHeader>
             <CardContent>
               {app.apiKeys.length === 0 ? (
@@ -460,6 +478,21 @@ export default function AppDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <Dialog open={!!showNewKey} onOpenChange={(o) => { if (!o) setShowNewKey(null) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New API Key</DialogTitle>
+              <DialogDescription>Copy this key now — it won't be shown again.</DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono break-all select-all">{showNewKey}</code>
+              <Button size="sm" onClick={() => { navigator.clipboard.writeText(showNewKey || ''); Toast({ title: 'Key copied' }) }}>
+                Copy
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="settings" className="space-y-4">
           <Card>
