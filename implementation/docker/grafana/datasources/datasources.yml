@@ -8,7 +8,7 @@ datasources:
     isDefault: true
 
   - name: TimescaleDB
-    type: postgres
+    type: grafana-postgresql-datasource
     url: timescaledb:5432
     database: monitoring
     user: monitor
@@ -16,6 +16,8 @@ datasources:
       password: ${POSTGRES_PASSWORD}
     jsonData:
       sslmode: disable
+      database: monitoring
+      postgresVersion: 1600
 
   - name: Loki
     type: loki
