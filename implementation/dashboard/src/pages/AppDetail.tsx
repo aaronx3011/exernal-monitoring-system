@@ -377,6 +377,7 @@ export default function AppDetail() {
                                 stroke="hsl(var(--primary))"
                                 strokeWidth={1.5}
                                 dot={false}
+                                isAnimationActive={false}
                               />
                             </LineChart>
                           </ResponsiveContainer>

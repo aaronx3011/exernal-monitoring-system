@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Play, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Play, Loader2, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,6 +33,8 @@ export default function TestDetail() {
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
   const [test, setTest] = useState<any>(null)
   const [runs, setRuns] = useState<RunEntry[]>([])
+  const [elapsed, setElapsed] = useState(0)
+  const runPollRef = useRef<ReturnType<typeof setInterval>>()
 
   const fetchData = async () => {
     if (!id) return
@@ -66,6 +68,52 @@ export default function TestDetail() {
   useEffect(() => {
     fetchData()
   }, [id])
+
+  const latestRun = runs[0]
+  const isRunning = latestRun && (latestRun.status === 'running' || latestRun.status === 'pending')
+
+  useEffect(() => {
+    if (!isRunning) {
+      if (runPollRef.current) {
+        clearInterval(runPollRef.current)
+        runPollRef.current = undefined
+      }
+      setElapsed(0)
+      return
+    }
+    const start = Date.now()
+    setElapsed(0)
+    runPollRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000))
+      api.get(`/tests/${id}/runs?limit=1`).then(res => {
+        const latest = (res.data.data?.runs || [])[0]
+        if (latest) {
+          setRuns(prev => {
+            const exists = prev.find(r => r.id === latest.id)
+            if (!exists) return prev
+            return prev.map(r => r.id === latest.id ? {
+              ...r,
+              status: latest.passed ? 'passed' : latest.status || 'failed',
+              summary: latest.passed ? 'All thresholds passed' : 'Some thresholds exceeded',
+              passRate: latest.passRate ?? (latest.passed ? 100 : 0),
+              p95: latest.p95 || 0,
+              p99: latest.p99 || 0,
+              errorRate: latest.errorRate ?? (latest.passed ? 0 : 100),
+              rps: latest.rps || 0,
+            } : r)
+          })
+          if (latest.status === 'completed' || latest.status === 'failed') {
+            if (runPollRef.current) clearInterval(runPollRef.current)
+            runPollRef.current = undefined
+            setElapsed(0)
+          }
+        }
+      }).catch(() => {})
+    }, 1000)
+    return () => {
+      if (runPollRef.current) clearInterval(runPollRef.current)
+    }
+  }, [id, isRunning])
 
   const handleRunNow = async () => {
     if (!id) return
@@ -140,6 +188,72 @@ export default function TestDetail() {
         </TabsList>
 
         <TabsContent value="history" className="space-y-3">
+          {isRunning ? (
+            <Card className="border-primary/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">Test Running</span>
+                      <Badge variant="outline" className="text-primary border-primary/50">RUNNING</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{elapsed}s elapsed</span>
+                    </div>
+                  </div>
+                  <div className="text-right text-sm">
+                    <p className="text-muted-foreground">Target</p>
+                    <p className="font-mono text-xs">{test.method} {test.targetPath}</p>
+                  </div>
+                </div>
+                <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  {test.durationS ? (
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: `${Math.min((elapsed / test.durationS) * 100, 100)}%` }}
+                    />
+                  ) : (
+                    <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '100%' }} />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : latestRun && latestRun.status === 'passed' ? (
+            <Card className="border-emerald-500/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">Test Passed</span>
+                      <Badge variant="success">PASS</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      p95: {latestRun.p95}ms · p99: {latestRun.p99}ms · ERR: {latestRun.errorRate}%
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : latestRun && latestRun.status === 'failed' ? (
+            <Card className="border-red-500/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-red-500" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">Test Failed</span>
+                      <Badge variant="danger">FAIL</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">{latestRun.summary}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {runs.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               No runs yet. Click "Run Now" to start.
