@@ -101,6 +101,7 @@ export class RegistrationService {
     if (!app) {
       throw new NotFoundException('Application not found');
     }
+    app.apiKeys = app.apiKeys.filter((k) => !k.revokedAt);
     return app;
   }
 
