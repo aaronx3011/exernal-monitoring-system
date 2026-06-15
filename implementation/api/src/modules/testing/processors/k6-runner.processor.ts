@@ -32,6 +32,20 @@ export class K6RunnerProcessor extends WorkerHost {
     const testDef = await this.testDefRepository.findOne({ where: { id: testDefinitionId } });
     if (!testDef) throw new Error(`TestDefinition ${testDefinitionId} not found`);
 
+    if (testRun.status === 'running' && testRun.startedAt) {
+      const elapsed = Date.now() - testRun.startedAt.getTime();
+      const maxRun = (testDef.durationS + 120) * 1000;
+      if (elapsed > maxRun) {
+        testRun.status = 'failed';
+        testRun.finishedAt = new Date();
+        testRun.summary = { error: 'Stale run detected — exceeded max duration' };
+        testRun.passed = false;
+        await this.testRunRepository.save(testRun);
+        this.logger.warn(`Stale test run ${testRunId} marked as failed (${Math.round(elapsed / 1000)}s elapsed)`);
+        return { testRunId, passed: false, stale: true };
+      }
+    }
+
     testRun.status = 'running';
     testRun.startedAt = new Date();
     await this.testRunRepository.save(testRun);
@@ -48,10 +62,14 @@ export class K6RunnerProcessor extends WorkerHost {
       const output = await new Promise<string>((resolve, reject) => {
         exec(
           `docker run --rm --network=host -v ${tmpFile}:/script.js grafana/k6:latest run /script.js --summary-export=/dev/stdout`,
-          { timeout: (testDef.durationS + 60) * 1000, encoding: 'utf-8' },
+          {
+            timeout: (testDef.durationS + 60) * 1000,
+            maxBuffer: 10 * 1024 * 1024,
+            encoding: 'utf-8',
+          },
           (err, stdout) => {
-            if (err) reject(err);
-            else resolve(stdout);
+            if (err && !stdout) reject(err);
+            else resolve(stdout || '');
           },
         );
       });
