@@ -60,6 +60,8 @@ services:
       - ../.env
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+      - ./timescaledb/start.sh:/start.sh
+    command: /bin/sh /start.sh
     networks:
       - monitoring-net
     restart: unless-stopped
@@ -100,6 +102,8 @@ services:
     image: grafana/grafana:latest
     expose:
       - "3000"
+    env_file:
+      - ../.env
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
