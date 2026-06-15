@@ -29,6 +29,9 @@ export class TestRun {
   @Column({ type: 'varchar', length: 20, default: 'pending' })
   status!: TestRunStatus;
 
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt!: Date;
+
   @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
   startedAt!: Date | null;
 

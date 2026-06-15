@@ -48,7 +48,7 @@ export default function TestDetail() {
       const runsList = runsRes.data.data?.runs || []
       setRuns(runsList.map((r: any) => ({
         id: r.id,
-        date: r.createdAt || r.startedAt,
+        date: r.createdAt || r.startedAt || new Date().toISOString(),
         trigger: r.trigger || 'manual',
         status: r.passed ? 'passed' : r.status || 'failed',
         summary: typeof r.summary === 'object' ? (r.passed ? 'All thresholds passed' : 'Some thresholds exceeded') : (r.summary || ''),
@@ -73,47 +73,50 @@ export default function TestDetail() {
   const isRunning = latestRun && (latestRun.status === 'running' || latestRun.status === 'pending')
 
   useEffect(() => {
-    if (!isRunning) {
-      if (runPollRef.current) {
-        clearInterval(runPollRef.current)
-        runPollRef.current = undefined
-      }
-      setElapsed(0)
+    if (!isRunning || !test) {
+      if (runPollRef.current) clearInterval(runPollRef.current)
+      runPollRef.current = undefined
       return
     }
     const start = Date.now()
+    const maxDuration = (test.durationS || 60) + 90
     setElapsed(0)
     runPollRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000))
+      const secs = Math.floor((Date.now() - start) / 1000)
+      setElapsed(secs)
+      if (secs > maxDuration) {
+        if (runPollRef.current) clearInterval(runPollRef.current)
+        runPollRef.current = undefined
+        return
+      }
       api.get(`/tests/${id}/runs?limit=1`).then(res => {
         const latest = (res.data.data?.runs || [])[0]
-        if (latest) {
-          setRuns(prev => {
-            const exists = prev.find(r => r.id === latest.id)
-            if (!exists) return prev
-            return prev.map(r => r.id === latest.id ? {
-              ...r,
-              status: latest.passed ? 'passed' : latest.status || 'failed',
-              summary: latest.passed ? 'All thresholds passed' : 'Some thresholds exceeded',
-              passRate: latest.passRate ?? (latest.passed ? 100 : 0),
-              p95: latest.p95 || 0,
-              p99: latest.p99 || 0,
-              errorRate: latest.errorRate ?? (latest.passed ? 0 : 100),
-              rps: latest.rps || 0,
-            } : r)
-          })
-          if (latest.status === 'completed' || latest.status === 'failed') {
-            if (runPollRef.current) clearInterval(runPollRef.current)
-            runPollRef.current = undefined
-            setElapsed(0)
-          }
+        if (!latest || latest.status === 'pending') return
+        setRuns(prev => {
+          const exists = prev.find(r => r.id === latest.id)
+          if (!exists) return prev
+          return prev.map(r => r.id === latest.id ? {
+            ...r,
+            status: latest.passed ? 'passed' : latest.status || 'failed',
+            date: latest.createdAt || latest.startedAt || r.date,
+            summary: latest.passed ? 'All thresholds passed' : 'Some thresholds exceeded',
+            passRate: latest.passRate ?? (latest.passed ? 100 : 0),
+            p95: latest.p95 || 0,
+            p99: latest.p99 || 0,
+            errorRate: latest.errorRate ?? (latest.passed ? 0 : 100),
+            rps: latest.rps || 0,
+          } : r)
+        })
+        if (latest.status === 'completed' || latest.status === 'failed') {
+          if (runPollRef.current) clearInterval(runPollRef.current)
+          runPollRef.current = undefined
         }
       }).catch(() => {})
     }, 1000)
     return () => {
       if (runPollRef.current) clearInterval(runPollRef.current)
     }
-  }, [id, isRunning])
+  }, [id, isRunning, test])
 
   const handleRunNow = async () => {
     if (!id) return
