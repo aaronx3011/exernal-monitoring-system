@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ExternalLink, Play, RefreshCw, Key, Settings as SettingsIcon,
@@ -48,6 +48,8 @@ export default function AppDetail() {
   const [metrics, setMetrics] = useState<any[]>([])
   const [metricsLoading, setMetricsLoading] = useState(false)
   const [metricsError, setMetricsError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('overview')
+  const metricsIntervalRef = useRef<ReturnType<typeof setInterval>>()
 
   const fetchApp = async () => {
     if (!id) return
@@ -110,6 +112,18 @@ export default function AppDetail() {
   useEffect(() => {
     fetchApp()
   }, [id])
+
+  useEffect(() => {
+    if (activeTab !== 'metrics') {
+      if (metricsIntervalRef.current) clearInterval(metricsIntervalRef.current)
+      return
+    }
+    fetchMetrics()
+    metricsIntervalRef.current = setInterval(fetchMetrics, 1000)
+    return () => {
+      if (metricsIntervalRef.current) clearInterval(metricsIntervalRef.current)
+    }
+  }, [activeTab, id])
 
   const handleProbeNow = async () => {
     if (!id) return
@@ -209,7 +223,7 @@ export default function AppDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview"><Activity className="h-4 w-4 mr-1.5" /> Overview</TabsTrigger>
           <TabsTrigger value="metrics"><BarChart3 className="h-4 w-4 mr-1.5" /> Metrics</TabsTrigger>
@@ -309,13 +323,13 @@ export default function AppDetail() {
               </Button>
             </CardHeader>
             <CardContent>
-              {metricsLoading ? (
+              {metricsLoading && metrics.length === 0 ? (
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <Skeleton key={i} className="h-48" />
                   ))}
                 </div>
-              ) : metricsError ? (
+              ) : metricsError && metrics.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p className="text-destructive">{metricsError}</p>
                   <Button variant="outline" size="sm" className="mt-3" onClick={fetchMetrics}>
