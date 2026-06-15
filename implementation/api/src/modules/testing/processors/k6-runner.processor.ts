@@ -28,17 +28,14 @@ export class K6RunnerProcessor extends WorkerHost {
 
   private pullImage() {
     try {
-      this.logger.log(`Pre-pulling ${K6_IMAGE}...`);
       execSync(`docker pull ${K6_IMAGE}`, { timeout: 120_000, stdio: 'pipe' });
-      this.logger.log(`Image ${K6_IMAGE} ready`);
     } catch {
-      this.logger.warn(`Could not pre-pull ${K6_IMAGE}, will pull on first run`);
+      this.logger.warn(`k6 image pull failed, will pull on first run`);
     }
   }
 
   async process(job: Job<any>): Promise<any> {
     const { testRunId, testDefinitionId } = job.data;
-    this.logger.log(`Processing test run ${testRunId} (test: ${testDefinitionId})`);
 
     const testRun = await this.testRunRepository.findOne({ where: { id: testRunId } });
     if (!testRun) throw new Error(`TestRun ${testRunId} not found`);
@@ -63,7 +60,6 @@ export class K6RunnerProcessor extends WorkerHost {
     testRun.status = 'running';
     testRun.startedAt = new Date();
     await this.testRunRepository.save(testRun);
-    this.logger.log(`Test run ${testRunId} set to running`);
 
     try {
       const script = this.generateScript(testDef);
@@ -74,7 +70,6 @@ export class K6RunnerProcessor extends WorkerHost {
       const tmpFile = path.join(scriptsDir, `k6-script-${testRunId}.js`);
       fs.writeFileSync(tmpFile, script);
 
-      this.logger.log(`Starting k6 container for run ${testRunId} (duration: ${testDef.durationS}s)`);
       const output = await new Promise<string>((resolve, reject) => {
         exec(
           `docker run --rm --network=host -v ${tmpFile}:/script.js ${K6_IMAGE} run /script.js --summary-export=/dev/stdout`,
@@ -94,7 +89,6 @@ export class K6RunnerProcessor extends WorkerHost {
       });
 
       fs.unlinkSync(tmpFile);
-      this.logger.log(`k6 container finished for run ${testRunId}`);
 
       let summary: any;
       try {
@@ -105,7 +99,6 @@ export class K6RunnerProcessor extends WorkerHost {
 
       const thresholds = testDef.thresholds || {};
       const passed = this.evaluateThresholds(summary, thresholds);
-      this.logger.log(`Run ${testRunId} thresholds evaluated: passed=${passed}`);
 
       testRun.status = 'completed';
       testRun.finishedAt = new Date();
@@ -215,11 +208,6 @@ ${headersStr}
     }
 
     return true;
-  }
-
-  @OnWorkerEvent('completed')
-  onCompleted(job: Job) {
-    this.logger.debug(`K6 test job ${job.id} completed`);
   }
 
   @OnWorkerEvent('failed')

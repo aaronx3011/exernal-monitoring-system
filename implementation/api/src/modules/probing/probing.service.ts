@@ -58,7 +58,7 @@ export class ProbingService implements OnModuleInit {
       );
     }
 
-    this.logger.log(`Scheduled probes for ${apps.length} applications`);
+    if (apps.length > 0) this.logger.log(`Scheduled probes for ${apps.length} applications`);
   }
 
   async getProbeConfig(appId: string, orgId: string) {

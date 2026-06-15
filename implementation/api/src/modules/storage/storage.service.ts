@@ -23,7 +23,6 @@ export class StorageService implements OnModuleInit {
       await this.dataSource.query(
         `SELECT create_hypertable('${tableName}', '${timeColumn}', if_not_exists => true)`,
       );
-      this.logger.log(`Hypertable ensured for ${tableName}`);
     } catch (err: any) {
       this.logger.warn(
         `Could not create hypertable for ${tableName}: ${err.message}`,

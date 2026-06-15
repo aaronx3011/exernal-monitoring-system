@@ -137,6 +137,7 @@ export class TestingService implements OnModuleInit {
       }
     }
 
-    this.logger.log(`Scheduled ${scheduledTests.length} tests`);
+    const withCron = scheduledTests.filter((t) => t.scheduleCron).length;
+    if (withCron > 0) this.logger.log(`Scheduled ${withCron} tests with cron`);
   }
 }
